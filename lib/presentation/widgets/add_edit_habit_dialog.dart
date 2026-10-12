@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
+import '../../core/constants/habit_styles.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/habit.dart';
 
@@ -29,18 +30,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
   late int _selectedColor;
   late int _selectedIcon;
 
-  static const List<int> _availableIcons = [
-    0xe57f, // check_circle_outline
-    0xe625, // water drop / local_drink
-    0xe2bd, // fitness_center
-    0xe3e8, // menu_book
-    0xe51c, // self_improvement
-    0xe0b0, // directions_run
-    0xe68c, // bed
-    0xe1b1, // code
-    0xe40a, // brush
-    0xe425, // music_note
-  ];
+  static final List<int> _availableIcons = habitIconOptions.values.toList();
 
   @override
   void initState() {
@@ -49,7 +39,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
     _descController =
         TextEditingController(text: widget.habit?.description ?? '');
     _selectedColor =
-        widget.habit?.colorValue ?? AppColors.habitPalette[0].value;
+        widget.habit?.colorValue ?? AppColors.habitPalette[0].toARGB32();
     _selectedIcon = widget.habit?.iconCodePoint ?? _availableIcons[0];
   }
 
@@ -178,7 +168,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
                         height: 46,
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppColors.primary.withOpacity(0.15)
+                              ? AppColors.primary.withValues(alpha: 0.15)
                               : Colors.transparent,
                           shape: BoxShape.circle,
                           border: Border.all(
@@ -217,9 +207,9 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: AppColors.habitPalette.map((color) {
-                  final isSelected = color.value == _selectedColor;
+                  final isSelected = color.toARGB32() == _selectedColor;
                   return GestureDetector(
-                    onTap: () => setState(() => _selectedColor = color.value),
+                    onTap: () => setState(() => _selectedColor = color.toARGB32()),
                     child: Container(
                       width: 36,
                       height: 36,
@@ -233,7 +223,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: color.withOpacity(0.4),
+                                  color: color.withValues(alpha: 0.4),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 )

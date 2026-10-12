@@ -13,7 +13,6 @@ import '../widgets/celebration_overlay.dart';
 import '../widgets/habit_tile.dart';
 import '../widgets/streak_badge.dart';
 import '../widgets/weekly_heatmap.dart';
-import 'analytics_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -86,46 +85,6 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AnalyticsScreen()),
-              );
-            },
-            icon: const Icon(Icons.bar_chart_rounded),
-            tooltip: 'Analytics',
-          ),
-          IconButton(
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text('Start Fresh Today',
-                      style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-                  content: Text(
-                      'Reset all past history and start fresh from today?',
-                      style: GoogleFonts.inter()),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                      style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary),
-                      child: const Text('Start Fresh'),
-                    ),
-                  ],
-                ),
-              );
-              if (confirm == true) {
-                ref.read(habitNotifierProvider.notifier).resetFreshStart();
-              }
-            },
-            icon: const Icon(Icons.restart_alt_rounded),
-            tooltip: 'Start Fresh Today',
-          ),
           IconButton(
             onPressed: () {
               ref.read(themeModeProvider.notifier).toggleTheme();

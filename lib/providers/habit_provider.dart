@@ -45,7 +45,20 @@ class HabitState {
   }
 }
 
-class HabitNotifier extends Notifier<HabitState> {
+/// The habit operations the AI coach's plan executor is allowed to use.
+abstract class HabitActions {
+  List<Habit> get currentHabits;
+  Future<void> addHabit(Habit habit);
+  Future<void> updateHabit(Habit habit);
+  Future<void> deleteHabit(String habitId);
+  Future<void> setHabitCompletion(
+      DateTime date, String habitId, bool completed);
+}
+
+class HabitNotifier extends Notifier<HabitState> implements HabitActions {
+  @override
+  List<Habit> get currentHabits => state.habits;
+
   @override
   HabitState build() {
     final dbService = ref.watch(databaseServiceProvider);
@@ -61,18 +74,21 @@ class HabitNotifier extends Notifier<HabitState> {
     state = HabitState(habits: habits, logs: logs, isLoading: false);
   }
 
+  @override
   Future<void> addHabit(Habit habit) async {
     final dbService = ref.read(databaseServiceProvider);
     await dbService.saveHabit(habit);
     loadData();
   }
 
+  @override
   Future<void> updateHabit(Habit habit) async {
     final dbService = ref.read(databaseServiceProvider);
     await dbService.saveHabit(habit);
     loadData();
   }
 
+  @override
   Future<void> deleteHabit(String habitId) async {
     final dbService = ref.read(databaseServiceProvider);
     await dbService.deleteHabit(habitId);
@@ -82,6 +98,14 @@ class HabitNotifier extends Notifier<HabitState> {
   Future<void> resetFreshStart() async {
     final dbService = ref.read(databaseServiceProvider);
     await dbService.resetToFreshStart();
+    loadData();
+  }
+
+  @override
+  Future<void> setHabitCompletion(
+      DateTime date, String habitId, bool completed) async {
+    final dbService = ref.read(databaseServiceProvider);
+    await dbService.setHabitCompletion(date, habitId, completed);
     loadData();
   }
 
