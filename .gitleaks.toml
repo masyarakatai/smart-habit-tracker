@@ -1,0 +1,9 @@
+# Gitleaks config: default rules plus a stricter Google API key check.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "google-api-key"
+description = "Google / Gemini API key"
+regex = '''AIza[0-9A-Za-z_\-]{35}'''
+tags = ["key", "google", "gemini"]

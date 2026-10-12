@@ -43,3 +43,30 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# --- Secrets & signing: never commit these (repo is open source) ---
+# API keys and environment files
+.env
+.env.*
+*.env
+secrets.json
+**/secrets/
+# Android / iOS signing material
+key.properties
+**/key.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.p8
+*.mobileprovision
+# Firebase / Google service configs (add deliberately if ever needed)
+google-services.json
+GoogleService-Info.plist
+# Play Console service account keys
+*service-account*.json
+play-store-credentials*.json
+
+# --- Personal / local files ---
+claude.txt
+*.local.md
