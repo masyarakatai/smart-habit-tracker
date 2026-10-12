@@ -1,5 +1,8 @@
 # Habit Track
 
+[![CI](https://github.com/nandakishor-s/smart-habit-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/nandakishor-s/smart-habit-tracker/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 A strict-streak habit tracker for Android, built with Flutter. A day only counts toward your streak when **every** scheduled habit is completed.
 
 The next big step is an **AI Coach**: you chat with Gemini about your goals, agree on a plan, press **Schedule**, and the app creates, updates or removes habits for you. The end goal is to **publish on Google Play** and learn the full release pipeline.
@@ -63,13 +66,30 @@ android/app/src/main/kotlin/.../StreakWidgetProvider.kt   # native widget
 
 ## Getting started
 
+**Requirements:** Flutter 3.29 (stable) and an Android device or emulator (Android 6.0+).
+
 ```bash
+git clone https://github.com/nandakishor-s/smart-habit-tracker.git
+cd smart-habit-tracker
 flutter pub get
 flutter run              # with an Android device connected
 flutter test
 ```
 
-> Flutter and the Android SDK live on a separate NTFS partition (`/dev/sda6`). If `flutter` is "not found", mount that drive first (see `~/.bashrc`).
+### Using the AI Coach (free Gemini key)
+
+The coach uses **your own** Gemini API key. No key ships with the app or lives in this repo.
+
+1. Open [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and sign in with a Google account (18+).
+2. Click **Create API key** and copy it (it starts with `AIza`).
+3. In the app go to **Settings → AI Coach**, paste the key and tap **Save key**. It is stored encrypted on the device (Android Keystore).
+4. No billing account is needed. Without one you stay on the free tier and cannot be charged. When the free limit is reached, the coach pauses until it resets.
+
+### Privacy
+
+- Habits and history are stored **only on the device** (Hive).
+- When you chat with the coach, your message, recent chat and a short summary of your habits and streaks are sent to **Google Gemini**. On the free tier, Google may use this to improve its products.
+- No analytics, ads or tracking.
 
 ---
 
@@ -93,7 +113,7 @@ Build and validate on my own phone first. Decide on public release and architect
 
 ## Phase 0: Stabilise the base (before adding AI)
 
-- [x] `git init` (local). Still to do: push to a private GitHub repo
+- [x] `git init` and push to GitHub, with CI (analyze, test, secret scan) and Dependabot
 - [ ] Fix the release-build blocker: icons come from runtime `IconData(codePoint)`, which breaks icon tree-shaking in `flutter build --release`. Replace them with a fixed map of `Icons.*` constants keyed by a string id.
 - [ ] Replace hard delete with **archive**. Deleting a habit currently removes it from past logs, which rewrites streak history. The `isArchived` field already exists.
 - [x] Persist the theme mode in `settings_box`
@@ -247,7 +267,7 @@ Other AI details:
 ## Phase 4: Publish on Google Play
 
 ### App identity (do this before the first upload: it can't be changed later)
-- [ ] Final `applicationId`, e.g. `com.<yourname>.habittrack`, to replace `com.example.habittrack.habit_track`
+- [x] Final `applicationId`: `com.nandakishor.smarthabittracker`
 - [ ] App name and launcher icon (`flutter_launcher_icons`) and splash screen
 - [ ] `version: x.y.z+build` bumped for every upload
 
@@ -281,3 +301,24 @@ Other AI details:
 - Never commit API keys, keystores, `key.properties` or `google-services.json` secrets
 - Store the development Gemini key only in secure storage on the device
 - The AI never modifies data without explicit user confirmation
+- Every push and pull request is scanned for leaked secrets (gitleaks in CI)
+
+See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
+
+---
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+
+## License
+
+Copyright (C) 2026 Nanda Kishor S
+
+This program is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License v3.0**, or (at your option) any later version. It comes with **no warranty**. See [LICENSE](LICENSE).
+
+In short: you may use, study, change and share this app. If you distribute a modified version (for example on an app store), it must also be released under GPL-3.0 with its source code.
+
+### Name and logo
+
+The GPL covers the code, not the identity. The name **"Habit Track"**, the app icon and the store listing assets are not licensed for reuse. If you publish a fork, use a different name, icon and application ID so users can tell the apps apart.

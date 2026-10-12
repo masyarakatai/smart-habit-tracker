@@ -1,4 +1,4 @@
-package com.example.habittrack.habit_track
+package com.nandakishor.smarthabittracker
 
 import android.appwidget.AppWidgetManager
 import android.content.Context

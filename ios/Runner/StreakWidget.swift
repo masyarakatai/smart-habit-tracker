@@ -1,7 +1,7 @@
 import WidgetKit
 import SwiftUI
 
-private let widgetGroupId = "group.com.example.habittrack"
+private let widgetGroupId = "group.com.nandakishor.smarthabittracker"
 
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
