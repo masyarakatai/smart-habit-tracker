@@ -5,20 +5,24 @@ import '../../core/theme/app_colors.dart';
 
 class CelebrationOverlay extends StatelessWidget {
   final int streakCount;
+  final bool earnedFreeze;
   final VoidCallback onClose;
 
   const CelebrationOverlay({
     super.key,
     required this.streakCount,
     required this.onClose,
+    this.earnedFreeze = false,
   });
 
-  static void show(BuildContext context, int streakCount) {
+  static void show(BuildContext context, int streakCount,
+      {bool earnedFreeze = false}) {
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => CelebrationOverlay(
         streakCount: streakCount,
+        earnedFreeze: earnedFreeze,
         onClose: () => Navigator.of(ctx).pop(),
       ),
     );
@@ -37,12 +41,12 @@ class CelebrationOverlay extends StatelessWidget {
           color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: AppColors.streakFlame.withOpacity(0.5),
+            color: AppColors.streakFlame.withValues(alpha: 0.5),
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.streakFlame.withOpacity(0.25),
+              color: AppColors.streakFlame.withValues(alpha: 0.25),
               blurRadius: 32,
               spreadRadius: 4,
             ),
@@ -55,7 +59,7 @@ class CelebrationOverlay extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppColors.streakFlame.withOpacity(0.15),
+                color: AppColors.streakFlame.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -134,6 +138,39 @@ class CelebrationOverlay extends StatelessWidget {
                 ],
               ),
             ),
+
+            if (earnedFreeze) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.streakFreeze.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppColors.streakFreeze.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.ac_unit_rounded,
+                        color: AppColors.streakFreeze, size: 20),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Streak freeze earned! It will protect one missed day.',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.streakFreeze,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().fade(delay: 400.ms).slideY(begin: 0.3),
+            ],
 
             const SizedBox(height: 24),
 

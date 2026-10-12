@@ -66,7 +66,7 @@ class DashboardScreen extends ConsumerWidget {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.15),
+                color: AppColors.primary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
@@ -151,7 +151,12 @@ class DashboardScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Streak Badge Banner
-                    StreakBadge(streakCount: streakResult.currentStreak),
+                    StreakBadge(
+                      streakCount: streakResult.currentStreak,
+                      freezesAvailable: streakResult.freezesAvailable,
+                      maxFreezes: StreakCalculator.maxFreezes,
+                      daysUntilNextFreeze: streakResult.daysUntilNextFreeze,
+                    ),
 
                     const SizedBox(height: 16),
 
@@ -168,6 +173,8 @@ class DashboardScreen extends ConsumerWidget {
                           habitState.logs,
                         );
                       },
+                      isDayFrozen: (date) => streakResult.frozenDateKeys
+                          .contains(AppDateUtils.toDateKey(date)),
                     ),
 
                     const SizedBox(height: 20),
@@ -208,8 +215,8 @@ class DashboardScreen extends ConsumerWidget {
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
                               color: progressRatio == 1.0
-                                  ? AppColors.success.withOpacity(0.15)
-                                  : AppColors.primary.withOpacity(0.15),
+                                  ? AppColors.success.withValues(alpha: 0.15)
+                                  : AppColors.primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -266,6 +273,7 @@ class DashboardScreen extends ConsumerWidget {
                             habit: habit,
                             isCompleted: isDone,
                             onToggle: () async {
+                              final freezesBefore = streakResult.freezesAvailable;
                               final isNowPerfect = await ref
                                   .read(habitNotifierProvider.notifier)
                                   .toggleHabitCompletion(
@@ -276,11 +284,14 @@ class DashboardScreen extends ConsumerWidget {
                                   isNowPerfect &&
                                   AppDateUtils.isSameDay(
                                       selectedDate, DateTime.now())) {
-                                final updatedStreak = ref
-                                    .read(streakResultProvider)
-                                    .currentStreak;
+                                final updated = ref.read(streakResultProvider);
+                                if (!context.mounted) return;
                                 CelebrationOverlay.show(
-                                    context, updatedStreak);
+                                  context,
+                                  updated.currentStreak,
+                                  earnedFreeze:
+                                      updated.freezesAvailable > freezesBefore,
+                                );
                               }
                             },
                             onEdit: () =>

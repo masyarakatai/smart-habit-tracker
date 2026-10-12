@@ -6,12 +6,14 @@ class WeeklyHeatmap extends StatelessWidget {
   final DateTime selectedDate;
   final Function(DateTime) onDateSelected;
   final bool Function(DateTime) isDayPerfect;
+  final bool Function(DateTime) isDayFrozen;
 
   const WeeklyHeatmap({
     super.key,
     required this.selectedDate,
     required this.onDateSelected,
     required this.isDayPerfect,
+    required this.isDayFrozen,
   });
 
   @override
@@ -46,24 +48,9 @@ class WeeklyHeatmap extends StatelessWidget {
               ),
               Row(
                 children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Perfect',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.lightTextSecondary,
-                    ),
-                  ),
+                  _LegendDot(color: AppColors.success, label: 'Perfect', isDark: isDark),
+                  const SizedBox(width: 10),
+                  _LegendDot(color: AppColors.streakFreeze, label: 'Frozen', isDark: isDark),
                 ],
               ),
             ],
@@ -79,6 +66,11 @@ class WeeklyHeatmap extends StatelessWidget {
                   day.month == selectedDate.month &&
                   day.day == selectedDate.day;
               final perfect = isDayPerfect(day);
+              final frozen = !perfect && isDayFrozen(day);
+              // Ice blue for frozen days, green for perfect ones.
+              final Color? statusColor = perfect
+                  ? AppColors.success
+                  : (frozen ? AppColors.streakFreeze : null);
 
               return GestureDetector(
                 onTap: () => onDateSelected(day),
@@ -89,8 +81,8 @@ class WeeklyHeatmap extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.primary
-                        : (perfect
-                            ? AppColors.success.withOpacity(0.2)
+                        : (statusColor != null
+                            ? statusColor.withValues(alpha: 0.2)
                             : (isDark
                                 ? AppColors.darkBackground
                                 : AppColors.lightBackground)),
@@ -98,12 +90,11 @@ class WeeklyHeatmap extends StatelessWidget {
                     border: Border.all(
                       color: isSelected
                           ? AppColors.primary
-                          : (perfect
-                              ? AppColors.success
-                              : (isToday
-                                  ? AppColors.primary.withOpacity(0.5)
+                          : (statusColor ??
+                              (isToday
+                                  ? AppColors.primary.withValues(alpha: 0.5)
                                   : Colors.transparent)),
-                      width: isToday || perfect ? 1.5 : 1.0,
+                      width: isToday || statusColor != null ? 1.5 : 1.0,
                     ),
                   ),
                   child: Column(
@@ -128,20 +119,21 @@ class WeeklyHeatmap extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           color: isSelected
                               ? Colors.white
-                              : (perfect
-                                  ? AppColors.success
-                                  : (isDark
+                              : (statusColor ??
+                                  (isDark
                                       ? AppColors.darkTextPrimary
                                       : AppColors.lightTextPrimary)),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Icon(
-                        perfect ? Icons.check_circle : Icons.circle_outlined,
+                        perfect
+                            ? Icons.check_circle
+                            : (frozen ? Icons.ac_unit_rounded : Icons.circle_outlined),
                         size: 10,
                         color: isSelected
                             ? Colors.white
-                            : (perfect ? AppColors.success : Colors.grey.shade400),
+                            : (statusColor ?? Colors.grey.shade400),
                       ),
                     ],
                   ),
@@ -173,5 +165,34 @@ class WeeklyHeatmap extends StatelessWidget {
       default:
         return '';
     }
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  final bool isDark;
+
+  const _LegendDot({required this.color, required this.label, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          ),
+        ),
+      ],
+    );
   }
 }

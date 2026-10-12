@@ -89,6 +89,33 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: _StatCard(
+                      title: 'Freezes Used',
+                      value: '${streakResult.frozenDateKeys.length}',
+                      icon: Icons.ac_unit_rounded,
+                      color: AppColors.streakFreeze,
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _StatCard(
+                      title: 'Freezes Held',
+                      value:
+                          '${streakResult.freezesAvailable}/${StreakCalculator.maxFreezes}',
+                      icon: Icons.shield_rounded,
+                      color: AppColors.streakFreeze,
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _StatCard(
                       title: 'Active Habits',
                       value: '${habitState.habits.length}',
                       icon: Icons.task_alt_rounded,
@@ -138,14 +165,19 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                       habitState.habits,
                       habitState.logs,
                     );
-                    if (isPerfect) {
+                    final isFrozen = !isPerfect &&
+                        streakResult.frozenDateKeys
+                            .contains(AppDateUtils.toDateKey(date));
+                    if (isPerfect || isFrozen) {
                       return Positioned(
                         bottom: 4,
                         child: Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppColors.success,
+                          decoration: BoxDecoration(
+                            color: isPerfect
+                                ? AppColors.success
+                                : AppColors.streakFreeze,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -212,7 +244,7 @@ class _StatCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(icon, color: color, size: 20),
