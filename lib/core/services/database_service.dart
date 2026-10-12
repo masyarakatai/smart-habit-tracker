@@ -7,16 +7,19 @@ class DatabaseService {
   static const String habitsBoxName = 'habits_box';
   static const String habitLogsBoxName = 'habit_logs_box';
   static const String settingsBoxName = 'settings_box';
+  static const String coachBoxName = 'coach_box';
 
   late Box<Map> _habitsBox;
   late Box<Map> _habitLogsBox;
   late Box _settingsBox;
+  late Box _coachBox;
 
   Future<void> init() async {
     await Hive.initFlutter();
     _habitsBox = await Hive.openBox<Map>(habitsBoxName);
     _habitLogsBox = await Hive.openBox<Map>(habitLogsBoxName);
     _settingsBox = await Hive.openBox(settingsBoxName);
+    _coachBox = await Hive.openBox(coachBoxName);
 
     // Reset old demo data so user starts completely fresh starting today
     if (!isFreshStartConfigured()) {
@@ -105,6 +108,37 @@ class DatabaseService {
     }
     await saveHabitLog(log.copyWith(completedHabitIds: updatedSet));
   }
+
+  /// Sets a habit's completion for a date explicitly (used by the AI coach,
+  /// where "toggle" would be ambiguous).
+  Future<void> setHabitCompletion(
+      DateTime date, String habitId, bool completed) async {
+    final log = getHabitLog(date);
+    final updatedSet = Set<String>.from(log.completedHabitIds);
+    if (completed) {
+      updatedSet.add(habitId);
+    } else {
+      updatedSet.remove(habitId);
+    }
+    await saveHabitLog(log.copyWith(completedHabitIds: updatedSet));
+  }
+
+  // --- SETTINGS ---
+
+  dynamic getSetting(String key, {dynamic defaultValue}) =>
+      _settingsBox.get(key, defaultValue: defaultValue);
+
+  Future<void> putSetting(String key, dynamic value) =>
+      _settingsBox.put(key, value);
+
+  // --- AI COACH STORAGE (chat history, pending plan) ---
+
+  dynamic getCoachData(String key) => _coachBox.get(key);
+
+  Future<void> putCoachData(String key, dynamic value) =>
+      _coachBox.put(key, value);
+
+  Future<void> clearCoachData() => _coachBox.clear();
 
   // --- SEED FRESH HABITS STARTING TODAY ---
 

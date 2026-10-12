@@ -6,16 +6,27 @@ The next big step is an **AI Coach**: you chat with Gemini about your goals, agr
 
 ---
 
-## Current features (v1.0.0)
+## Current features
 
 - Daily habit checklist with progress bar and a 7-day consistency strip
 - Add / edit / delete habits (icon and accent color picker)
 - Strict streak engine: current streak and best streak (`lib/core/utils/streak_calculator.dart`)
-- "Perfect day" celebration dialog
-- Analytics screen: stat cards and a monthly calendar of perfect days
-- Light / dark theme toggle
+- **Streak freezes** (Duolingo-style):
+  - start with 1, earn 1 every 7 streak days, hold up to 2
+  - a missed day automatically uses a freeze and keeps the streak
+  - frozen days show in ice blue
+- "Perfect day" celebration dialog, which also tells you when you earned a freeze
+- **AI Coach tab** (Gemini, using your own AI Studio key):
+  - chat about your goals
+  - the coach proposes changes; you review and **Schedule** them
+- **Settings**:
+  - Gemini key (stored encrypted on the phone) and model picker
+  - AI usage stats (requests and tokens per day)
+  - theme (saved between launches), data reset, privacy note
+- Analytics screen: stat cards (including freezes) and a monthly calendar of perfect and frozen days
 - Android home-screen widget showing the streak and today's progress
 - Offline-first local storage with Hive
+- Bottom navigation: Today · Coach · Analytics · Settings
 
 ## Tech stack
 
@@ -39,8 +50,13 @@ lib/
 │   ├── utils/                    # StreakCalculator, AppDateUtils
 │   └── theme/                    # AppTheme, AppColors
 ├── providers/                    # habit, streak, theme providers
+├── features/coach/
+│   ├── coach_providers.dart      # API key, model, usage, chat controller
+│   ├── data/                     # CoachModel interface, GeminiClient (REST), UsageTracker
+│   ├── domain/                   # CoachEngine (tool loop + prompt), CoachTools, PlanItem, PlanExecutor
+│   └── presentation/             # CoachScreen, PlanReviewSheet
 └── presentation/
-    ├── screens/                  # Dashboard, Analytics
+    ├── screens/                  # HomeShell (tabs), Dashboard, Analytics, Settings
     └── widgets/                  # HabitTile, StreakBadge, WeeklyHeatmap, dialogs
 android/app/src/main/kotlin/.../StreakWidgetProvider.kt   # native widget
 ```
@@ -77,12 +93,13 @@ Build and validate on my own phone first. Decide on public release and architect
 
 ## Phase 0: Stabilise the base (before adding AI)
 
-- [ ] `git init` and push to a private GitHub repo
+- [x] `git init` (local). Still to do: push to a private GitHub repo
 - [ ] Fix the release-build blocker: icons come from runtime `IconData(codePoint)`, which breaks icon tree-shaking in `flutter build --release`. Replace them with a fixed map of `Icons.*` constants keyed by a string id.
 - [ ] Replace hard delete with **archive**. Deleting a habit currently removes it from past logs, which rewrites streak history. The `isArchived` field already exists.
-- [ ] Persist the theme mode in `settings_box`
+- [x] Persist the theme mode in `settings_box`
 - [ ] Recompute "today" when the app resumes, so it doesn't go stale after midnight
-- [ ] Clear the `flutter analyze` warnings (`withOpacity` → `withValues`, `BuildContext` used across `await`)
+- [x] Clear the `flutter analyze` warnings (`withOpacity` → `withValues`, `BuildContext` used across `await`)
+- [x] Add the `INTERNET` permission to the main manifest (release builds need it to call Gemini)
 - [ ] Replace the empty widget test with a real smoke test
 - [ ] Upgrade Flutter to the current stable release (needed later for Play's target-API requirement)
 
@@ -109,6 +126,8 @@ Changes this requires:
 - Unit tests for the new streak rules
 
 ## Phase 2: AI Coach
+
+> **Status: first version built** (development stage, own API key). It uses the current daily-only habit model. Weekdays and reminders arrive with Phase 1, when the tools gain those fields. Tool names in code: `propose_delete_habit` (hard delete, same as the manual UI) instead of archive, until archiving lands in Phase 0.
 
 ### User flow
 

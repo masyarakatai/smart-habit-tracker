@@ -1,0 +1,292 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:habit_track/core/constants/habit_styles.dart';
+import 'package:habit_track/core/utils/date_utils.dart';
+import 'package:habit_track/features/coach/data/coach_model.dart';
+import 'package:habit_track/features/coach/data/gemini_client.dart';
+import 'package:habit_track/features/coach/domain/chat_message.dart';
+import 'package:habit_track/features/coach/domain/coach_engine.dart';
+import 'package:habit_track/features/coach/domain/coach_tools.dart';
+import 'package:habit_track/features/coach/domain/plan_executor.dart';
+import 'package:habit_track/features/coach/domain/plan_item.dart';
+import 'package:habit_track/models/habit.dart';
+import 'package:habit_track/models/habit_log.dart';
+import 'package:habit_track/providers/habit_provider.dart';
+
+final today = DateTime(2026, 3, 31, 10);
+DateTime daysAgo(int n) => DateTime(today.year, today.month, today.day - n);
+
+final workout = Habit(id: 'h1', title: 'Workout', createdAt: daysAgo(10));
+final reading = Habit(id: 'h2', title: 'Read', createdAt: daysAgo(3));
+
+CoachTools toolsWith({int pending = 0, Map<String, HabitLog> logs = const {}}) =>
+    CoachTools(habits: [workout, reading], logs: logs, today: today, pendingCount: pending);
+
+/// In-memory [HabitActions] for executor tests.
+class FakeHabitActions implements HabitActions {
+  final List<Habit> habits;
+  final Map<String, Set<String>> completions = {};
+
+  FakeHabitActions(List<Habit> initial) : habits = [...initial];
+
+  @override
+  List<Habit> get currentHabits => habits;
+
+  @override
+  Future<void> addHabit(Habit habit) async => habits.add(habit);
+
+  @override
+  Future<void> updateHabit(Habit habit) async {
+    habits[habits.indexWhere((h) => h.id == habit.id)] = habit;
+  }
+
+  @override
+  Future<void> deleteHabit(String habitId) async => habits.removeWhere((h) => h.id == habitId);
+
+  @override
+  Future<void> setHabitCompletion(DateTime date, String habitId, bool completed) async {
+    final set = completions.putIfAbsent(AppDateUtils.toDateKey(date), () => {});
+    completed ? set.add(habitId) : set.remove(habitId);
+  }
+}
+
+/// Returns scripted turns in order and records what it was sent.
+class FakeModel implements CoachModel {
+  final List<ModelTurn> turns;
+  final List<List<Map<String, dynamic>>> requests = [];
+
+  FakeModel(this.turns);
+
+  @override
+  Future<ModelTurn> generate({
+    required String systemInstruction,
+    required List<Map<String, dynamic>> contents,
+    List<Map<String, dynamic>> tools = const [],
+  }) async {
+    requests.add(List.of(contents));
+    return turns[requests.length - 1];
+  }
+}
+
+ModelTurn textTurn(String text) => ModelTurn(
+      rawContent: {'role': 'model', 'parts': [{'text': text}]},
+      text: text,
+      functionCalls: const [],
+    );
+
+ModelTurn callTurn(String name, Map<String, dynamic> args) => ModelTurn(
+      rawContent: {
+        'role': 'model',
+        'parts': [
+          {'functionCall': {'name': name, 'args': args}, 'thoughtSignature': 'sig'}
+        ]
+      },
+      text: '',
+      functionCalls: [FunctionCall(name, args)],
+    );
+
+void main() {
+  group('CoachTools proposals', () {
+    test('Add habit queues a plan item with named icon and color', () {
+      final r = toolsWith().handle('propose_add_habit',
+          {'title': 'Evening walk', 'icon': 'run', 'color': 'teal', 'reason': 'Gentle cardio'});
+
+      expect(r.planItem?.type, PlanItemType.addHabit);
+      expect(r.planItem?.iconCodePoint, habitIconOptions['run']);
+      expect(r.planItem?.colorValue, habitColorOptions['teal']);
+      expect(r.response['status'], 'queued_for_user_approval');
+    });
+
+    test('Rejects a duplicate habit title', () {
+      final r = toolsWith().handle('propose_add_habit', {'title': 'workout', 'reason': ''});
+      expect(r.planItem, isNull);
+      expect(r.response['error'], contains('already exists'));
+    });
+
+    test('Rejects unknown habit ids', () {
+      final r = toolsWith().handle('propose_delete_habit', {'habit_id': 'nope', 'reason': ''});
+      expect(r.planItem, isNull);
+      expect(r.response['error'], contains('list_habits'));
+    });
+
+    test('Log change rejects future dates and dates before the habit existed', () {
+      final tools = toolsWith();
+      final future = tools.handle('propose_log_change', {
+        'habit_id': 'h1',
+        'date': AppDateUtils.toDateKey(daysAgo(-1)),
+        'completed': true,
+        'reason': '',
+      });
+      final tooEarly = tools.handle('propose_log_change', {
+        'habit_id': 'h2',
+        'date': AppDateUtils.toDateKey(daysAgo(5)),
+        'completed': true,
+        'reason': '',
+      });
+      final ok = tools.handle('propose_log_change', {
+        'habit_id': 'h1',
+        'date': AppDateUtils.toDateKey(daysAgo(1)),
+        'completed': true,
+        'reason': 'Forgot to tick',
+      });
+
+      expect(future.response['error'], contains('future'));
+      expect(tooEarly.response['error'], contains('did not exist'));
+      expect(ok.planItem?.dateKey, AppDateUtils.toDateKey(daysAgo(1)));
+    });
+
+    test('Update with nothing to change is rejected', () {
+      final r = toolsWith().handle('propose_update_habit', {'habit_id': 'h1', 'reason': ''});
+      expect(r.response['error'], 'Nothing to change');
+    });
+
+    test('Refuses new proposals once the plan is full', () {
+      final r = toolsWith(pending: CoachTools.maxPendingItems)
+          .handle('propose_add_habit', {'title': 'X', 'reason': ''});
+      expect(r.planItem, isNull);
+    });
+  });
+
+  group('Analytics', () {
+    test('History string marks perfect, missed and today', () {
+      final key = AppDateUtils.toDateKey(daysAgo(1));
+      final logs = {key: HabitLog(dateKey: key, completedHabitIds: {'h1', 'h2'})};
+      final a = buildAnalytics(habits: [workout, reading], logs: logs, today: today, days: 3);
+
+      // 3 days ago: missed (both habits exist), 2 ago: missed, 1 ago: perfect, today.
+      // First miss is saved by the starting freeze only if a streak was running (it wasn't).
+      expect(a['history_oldest_to_today'], 'MMPT');
+      expect(a['current_streak'], 1);
+    });
+  });
+
+  group('PlanExecutor', () {
+    test('Applies only selected items', () async {
+      final actions = FakeHabitActions([workout, reading]);
+      final items = [
+        const PlanItem(id: 'a', type: PlanItemType.addHabit, title: 'Walk'),
+        const PlanItem(id: 'b', type: PlanItemType.deleteHabit, habitId: 'h2', selected: false),
+        const PlanItem(id: 'c', type: PlanItemType.updateHabit, habitId: 'h1', title: 'Gym'),
+      ];
+
+      final result = await PlanExecutor(actions, now: () => today).apply(items);
+
+      expect(result.applied.map((i) => i.id), containsAll(['a', 'c']));
+      expect(actions.habits.map((h) => h.title), ['Gym', 'Read', 'Walk']);
+    });
+
+    test('Skips items whose habit was removed earlier in the plan', () async {
+      final actions = FakeHabitActions([workout]);
+      final items = [
+        const PlanItem(id: 'del', type: PlanItemType.deleteHabit, habitId: 'h1'),
+        const PlanItem(
+            id: 'log', type: PlanItemType.logChange, habitId: 'h1', dateKey: '2026-03-30', completed: true),
+      ];
+      // Log changes run before deletes, so both succeed.
+      final result = await PlanExecutor(actions).apply(items);
+
+      expect(result.skipped, isEmpty);
+      expect(actions.completions['2026-03-30'], {'h1'});
+      expect(actions.habits, isEmpty);
+
+      final again = await PlanExecutor(actions).apply([items.first]);
+      expect(again.skipped.values.single, 'Habit no longer exists');
+    });
+  });
+
+  group('CoachEngine', () {
+    test('Runs tool calls, collects proposals and returns the final text', () async {
+      final model = FakeModel([
+        callTurn('list_habits', {}),
+        callTurn('propose_add_habit', {'title': 'Stretch', 'reason': 'Recovery'}),
+        textTurn('Added a stretch habit to your plan.'),
+      ]);
+
+      final reply = await CoachEngine(model).reply(
+        history: const [],
+        userText: 'Add stretching',
+        tools: toolsWith(),
+        systemInstruction: 'test',
+      );
+
+      expect(reply.text, 'Added a stretch habit to your plan.');
+      expect(reply.newPlanItems.single.title, 'Stretch');
+      expect(model.requests.length, 3);
+      // The model's raw content (with its thought signature) is sent back as-is,
+      // followed by the function response.
+      final last = model.requests.last;
+      expect(last[last.length - 2]['parts'][0]['thoughtSignature'], 'sig');
+      expect(last.last['parts'][0]['functionResponse']['name'], 'propose_add_habit');
+    });
+
+    test('Falls back to a helpful message when the model returns no text', () async {
+      final model = FakeModel([
+        callTurn('propose_add_habit', {'title': 'Stretch', 'reason': ''}),
+        textTurn(''),
+      ]);
+      final reply = await CoachEngine(model).reply(
+        history: const [],
+        userText: 'hi',
+        tools: toolsWith(),
+        systemInstruction: 'test',
+      );
+      expect(reply.text, contains('press Schedule'));
+    });
+
+    test('Builds contents: merges same-role turns, drops leading model turns, windows history', () {
+      ChatMessage m(ChatRole r, String t) => ChatMessage(role: r, text: t, time: today);
+      final contents = CoachEngine.buildContents([
+        m(ChatRole.coach, 'welcome'),
+        m(ChatRole.user, 'a'),
+        m(ChatRole.event, 'plan applied'),
+        m(ChatRole.coach, 'b'),
+      ]);
+
+      expect(contents.length, 2);
+      expect(contents.first['role'], 'user');
+      expect((contents.first['parts'] as List).length, 2);
+      expect(contents.first['parts'][1]['text'], '[App note] plan applied');
+
+      final many = [for (var i = 0; i < 30; i++) m(i.isEven ? ChatRole.user : ChatRole.coach, '$i')];
+      final windowed = CoachEngine.buildContents(many);
+      expect(windowed.length, CoachEngine.historyWindow);
+    });
+  });
+
+  group('Gemini response parsing', () {
+    test('Extracts text, function calls and usage, skipping thoughts', () {
+      final turn = parseGenerateResponse({
+        'candidates': [
+          {
+            'content': {
+              'role': 'model',
+              'parts': [
+                {'text': 'thinking...', 'thought': true},
+                {'text': 'Sure!'},
+                {
+                  'functionCall': {'name': 'get_analytics', 'args': {'days': 7}},
+                  'thoughtSignature': 'abc'
+                },
+              ]
+            },
+            'finishReason': 'STOP'
+          }
+        ],
+        'usageMetadata': {'promptTokenCount': 100, 'candidatesTokenCount': 20, 'thoughtsTokenCount': 5},
+      });
+
+      expect(turn.text, 'Sure!');
+      expect(turn.functionCalls.single.name, 'get_analytics');
+      expect(turn.functionCalls.single.args['days'], 7);
+      expect(turn.usage.promptTokens, 100);
+      expect(turn.usage.outputTokens, 25);
+      expect((turn.rawContent['parts'] as List)[2]['thoughtSignature'], 'abc');
+    });
+
+    test('Blocked prompt throws a blocked error', () {
+      expect(
+        () => parseGenerateResponse({'promptFeedback': {'blockReason': 'SAFETY'}}),
+        throwsA(isA<CoachModelException>().having((e) => e.kind, 'kind', CoachErrorKind.blocked)),
+      );
+    });
+  });
+}

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
 class HomeWidgetService {
@@ -32,7 +33,7 @@ class HomeWidgetService {
       );
     } catch (e) {
       // Gracefully capture platform errors if running on web or unsupported platform
-      print('Error updating home widget: $e');
+      debugPrint('Error updating home widget: $e');
     }
   }
 }

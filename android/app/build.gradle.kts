@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.habittrack.habit_track"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36 // required by newer plugins (e.g. flutter_secure_storage)
     ndkVersion = "27.0.12077973"
 
     compileOptions {
