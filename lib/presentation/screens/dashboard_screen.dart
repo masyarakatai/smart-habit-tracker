@@ -11,8 +11,19 @@ import '../../providers/theme_provider.dart';
 import '../widgets/add_edit_habit_dialog.dart';
 import '../widgets/celebration_overlay.dart';
 import '../widgets/habit_tile.dart';
+import '../widgets/mascot/ember_card.dart';
 import '../widgets/streak_badge.dart';
 import '../widgets/weekly_heatmap.dart';
+
+/// Bumped whenever a habit is ticked, so Ember jumps.
+class EmberReactNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final emberReactProvider = NotifierProvider<EmberReactNotifier, int>(EmberReactNotifier.new);
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -109,6 +120,14 @@ class DashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Ember the mascot
+                    EmberCard(
+                      streak: streakResult,
+                      reactTick: ref.watch(emberReactProvider),
+                    ),
+
+                    const SizedBox(height: 12),
+
                     // Streak Badge Banner
                     StreakBadge(
                       streakCount: streakResult.currentStreak,
@@ -233,6 +252,7 @@ class DashboardScreen extends ConsumerWidget {
                             isCompleted: isDone,
                             onToggle: () async {
                               final freezesBefore = streakResult.freezesAvailable;
+                              if (!isDone) ref.read(emberReactProvider.notifier).bump();
                               final isNowPerfect = await ref
                                   .read(habitNotifierProvider.notifier)
                                   .toggleHabitCompletion(

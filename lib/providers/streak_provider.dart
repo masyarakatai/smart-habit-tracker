@@ -1,13 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/services/home_widget_service.dart';
+import '../core/utils/date_utils.dart';
 import '../core/utils/streak_calculator.dart';
 import 'habit_provider.dart';
 
 final streakResultProvider = Provider<StreakResult>((ref) {
   final habitState = ref.watch(habitNotifierProvider);
 
+  final now = DateTime.now();
   final result = StreakCalculator.calculateStreak(
-    today: DateTime.now(),
+    today: now,
     habits: habitState.habits,
     logs: habitState.logs,
   );
@@ -18,6 +20,8 @@ final streakResultProvider = Provider<StreakResult>((ref) {
     completedCount: result.todayCompletedCount,
     totalCount: result.todayTotalCount,
     isTodayPerfect: result.isTodayPerfect,
+    freezeSavedYesterday: result.frozenDateKeys.contains(
+        AppDateUtils.toDateKey(DateTime(now.year, now.month, now.day - 1))),
   );
 
   return result;
