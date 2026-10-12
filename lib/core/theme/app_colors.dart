@@ -9,6 +9,7 @@ class AppColors {
   // Status & Accents
   static const Color streakFlame = Color(0xFFF97316); // Bright Flame Orange
   static const Color streakFlameYellow = Color(0xFFFBBF24);
+  static const Color streakFreeze = Color(0xFF38BDF8); // Ice Blue
   static const Color success = Color(0xFF10B981); // Emerald Green
   static const Color successContainer = Color(0xFFD1FAE5);
   static const Color pending = Color(0xFF64748B); // Slate
