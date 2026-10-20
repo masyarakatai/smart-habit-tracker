@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/constants/habit_styles.dart';
 
 /// Data model representing a user's daily habit.
 class Habit {
@@ -20,10 +21,7 @@ class Habit {
     this.isArchived = false,
   });
 
-  IconData get iconData => IconData(
-        iconCodePoint,
-        fontFamily: 'MaterialIcons',
-      );
+  IconData get iconData => iconDataFor(iconCodePoint);
 
   Color get color => Color(colorValue);
 

@@ -30,7 +30,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
   late int _selectedColor;
   late int _selectedIcon;
 
-  static final List<int> _availableIcons = habitIconOptions.values.toList();
+  static final List<IconData> _availableIcons = habitIconDataOptions.values.toList();
 
   @override
   void initState() {
@@ -40,7 +40,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
         TextEditingController(text: widget.habit?.description ?? '');
     _selectedColor =
         widget.habit?.colorValue ?? AppColors.habitPalette[0].toARGB32();
-    _selectedIcon = widget.habit?.iconCodePoint ?? _availableIcons[0];
+    _selectedIcon = widget.habit?.iconCodePoint ?? _availableIcons[0].codePoint;
   }
 
   @override
@@ -158,10 +158,10 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
                   scrollDirection: Axis.horizontal,
                   itemCount: _availableIcons.length,
                   itemBuilder: (context, index) {
-                    final iconCode = _availableIcons[index];
-                    final isSelected = iconCode == _selectedIcon;
+                    final icon = _availableIcons[index];
+                    final isSelected = icon.codePoint == _selectedIcon;
                     return GestureDetector(
-                      onTap: () => setState(() => _selectedIcon = iconCode),
+                      onTap: () => setState(() => _selectedIcon = icon.codePoint),
                       child: Container(
                         margin: const EdgeInsets.only(right: 10),
                         width: 46,
@@ -179,7 +179,7 @@ class _AddEditHabitDialogState extends State<AddEditHabitDialog> {
                           ),
                         ),
                         child: Icon(
-                          IconData(iconCode, fontFamily: 'MaterialIcons'),
+                          icon,
                           color: isSelected
                               ? AppColors.primary
                               : (isDark ? Colors.white70 : Colors.black54),
