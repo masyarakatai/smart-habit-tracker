@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest an idea or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: e.g. "I want reminders so I don't forget my evening habits."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How should it work? Sketches or screenshots of similar apps are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Project rules
+      options:
+        - label: The AI coach should still only *propose* changes (nothing applied without Schedule)
+        - label: User data should stay on the device (no tracking or ads)
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself
