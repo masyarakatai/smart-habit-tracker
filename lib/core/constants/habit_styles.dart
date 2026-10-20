@@ -14,6 +14,16 @@ const Map<String, IconData> habitIconDataOptions = {
   'code': Icons.code,
   'art': Icons.brush,
   'music': Icons.music_note,
+  'walk': Icons.directions_walk,
+  'pets': Icons.pets,
+  'journal': Icons.edit_note,
+  'study': Icons.school,
+  'cook': Icons.restaurant,
+  'pray': Icons.church,
+  'pill': Icons.medication,
+  'savings': Icons.savings,
+  'garden': Icons.yard,
+  'language': Icons.translate,
 };
 
 /// Code points used by newly created habits and by the coach tool.
