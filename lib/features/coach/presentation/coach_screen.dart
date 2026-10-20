@@ -111,6 +111,7 @@ class _CoachScreenState extends ConsumerState<CoachScreen> {
                       controller: _input,
                       enabled: !coach.isSending,
                       onSend: _send,
+                      onStop: () => ref.read(coachControllerProvider.notifier).cancel(),
                       isDark: isDark,
                     ),
                   ],
@@ -441,12 +442,14 @@ class _InputBar extends StatelessWidget {
   final TextEditingController controller;
   final bool enabled;
   final ValueChanged<String?> onSend;
+  final VoidCallback onStop;
   final bool isDark;
 
   const _InputBar({
     required this.controller,
     required this.enabled,
     required this.onSend,
+    required this.onStop,
     required this.isDark,
   });
 
@@ -485,11 +488,17 @@ class _InputBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            IconButton.filled(
-              onPressed: enabled ? () => onSend(null) : null,
-              icon: const Icon(Icons.send_rounded),
-              tooltip: 'Send',
-            ),
+            enabled
+                ? IconButton.filled(
+                    onPressed: () => onSend(null),
+                    icon: const Icon(Icons.send_rounded),
+                    tooltip: 'Send',
+                  )
+                : IconButton.filledTonal(
+                    onPressed: onStop,
+                    icon: const Icon(Icons.stop_rounded),
+                    tooltip: 'Stop',
+                  ),
           ],
         ),
       ),

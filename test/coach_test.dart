@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:habit_track/core/constants/habit_styles.dart';
 import 'package:habit_track/core/utils/date_utils.dart';
@@ -8,6 +10,8 @@ import 'package:habit_track/features/coach/domain/coach_engine.dart';
 import 'package:habit_track/features/coach/domain/coach_tools.dart';
 import 'package:habit_track/features/coach/domain/plan_executor.dart';
 import 'package:habit_track/features/coach/domain/plan_item.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:habit_track/models/habit.dart';
 import 'package:habit_track/models/habit_log.dart';
 import 'package:habit_track/providers/habit_provider.dart';
@@ -287,6 +291,91 @@ void main() {
         () => parseGenerateResponse({'promptFeedback': {'blockReason': 'SAFETY'}}),
         throwsA(isA<CoachModelException>().having((e) => e.kind, 'kind', CoachErrorKind.blocked)),
       );
+    });
+  });
+
+  group('GeminiClient overload handling', () {
+    final ok = jsonEncode({
+      'candidates': [
+        {
+          'content': {
+            'role': 'model',
+            'parts': [
+              {'text': 'Hi!'}
+            ]
+          }
+        }
+      ]
+    });
+    final busy = jsonEncode({
+      'error': {'code': 503, 'message': 'high demand', 'status': 'UNAVAILABLE'}
+    });
+
+    GeminiClient clientWith(http.Response Function(String model) respond, List<String> calls) =>
+        GeminiClient(
+          apiKey: 'test',
+          model: GeminiClient.defaultModel,
+          retryDelay: Duration.zero,
+          httpClient: MockClient((req) async {
+            final model = req.url.pathSegments.last.split(':').first;
+            calls.add(model);
+            return respond(model);
+          }),
+        );
+
+    Future<ModelTurn> hi(GeminiClient c) => c.generate(systemInstruction: 's', contents: [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': 'hi'}
+            ]
+          }
+        ]);
+
+    test('Falls back to the lighter model when the default stays overloaded', () async {
+      final calls = <String>[];
+      final client = clientWith(
+          (m) => m == GeminiClient.fallbackModel ? http.Response(ok, 200) : http.Response(busy, 503),
+          calls);
+      final turn = await hi(client);
+      expect(turn.text, 'Hi!');
+      expect(calls, [GeminiClient.defaultModel, GeminiClient.defaultModel, GeminiClient.fallbackModel]);
+      expect(client.activeModel, GeminiClient.fallbackModel);
+
+      // The rest of the reply sticks to the model that answered.
+      await hi(client);
+      expect(calls.last, GeminiClient.fallbackModel);
+    });
+
+    test('Recovers on a quick retry without switching model', () async {
+      final calls = <String>[];
+      var first = true;
+      final client = clientWith((m) {
+        if (first) {
+          first = false;
+          return http.Response(busy, 503);
+        }
+        return http.Response(ok, 200);
+      }, calls);
+      expect((await hi(client)).text, 'Hi!');
+      expect(calls, [GeminiClient.defaultModel, GeminiClient.defaultModel]);
+    });
+
+    test('Reports a server error when both models are overloaded', () async {
+      final client = clientWith((_) => http.Response(busy, 503), []);
+      expect(
+        () => hi(client),
+        throwsA(isA<CoachModelException>().having((e) => e.kind, 'kind', CoachErrorKind.server)),
+      );
+    });
+
+    test('Does not retry a rejected key', () async {
+      final calls = <String>[];
+      final client = clientWith(
+          (_) => http.Response(jsonEncode({'error': {'message': 'API key not valid', 'status': 'INVALID_ARGUMENT'}}), 400),
+          calls);
+      await expectLater(hi(client), throwsA(isA<CoachModelException>()));
+      expect(calls.length, 1);
     });
   });
 }

@@ -64,7 +64,7 @@ class CoachModelException implements Exception {
       case CoachErrorKind.blocked:
         return 'Gemini declined to answer that. Try rephrasing.';
       case CoachErrorKind.server:
-        return 'Gemini is having trouble right now. Try again shortly.';
+        return 'Gemini is overloaded right now, even the backup model. Try again in a minute.';
       case CoachErrorKind.unknown:
         return 'Something went wrong: $message';
     }

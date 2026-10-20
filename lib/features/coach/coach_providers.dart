@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/services/secure_key_store.dart';
@@ -99,6 +102,13 @@ class CoachController extends Notifier<CoachState> {
   static const _messagesKey = 'messages';
   static const _planKey = 'plan';
 
+  /// Upper bound for one whole reply, including tool rounds, so the chat
+  /// can never stay stuck on the typing indicator.
+  static const replyTimeout = Duration(seconds: 90);
+
+  /// Bumped by [cancel]; a reply from an older run is dropped.
+  int _runId = 0;
+
   @override
   CoachState build() {
     final db = ref.watch(databaseServiceProvider);
@@ -128,46 +138,58 @@ class CoachController extends Notifier<CoachState> {
     await _run(messages.sublist(0, messages.length - 1), messages.last.text);
   }
 
-  Future<void> _run(List<ChatMessage> history, String userText) async {
-    final apiKey = await ref.read(apiKeyProvider.future);
-    if (apiKey == null || apiKey.isEmpty) {
-      state = state.copyWith(error: 'Add your Gemini API key in Settings first.');
-      return;
-    }
+  /// Stops waiting for the current reply. The user's message stays so they
+  /// can retry.
+  void cancel() {
+    if (!state.isSending) return;
+    _runId++;
+    state = state.copyWith(isSending: false, error: 'Stopped. Tap Retry to ask again.');
+  }
 
+  Future<void> _run(List<ChatMessage> history, String userText) async {
+    final runId = ++_runId;
     state = state.copyWith(isSending: true);
     final usage = ref.read(usageTrackerProvider);
-    final habitState = ref.read(habitNotifierProvider);
-    final now = DateTime.now();
-
-    final engine = CoachEngine(
-      GeminiClient(apiKey: apiKey, model: ref.read(geminiModelProvider)),
-      onUsage: (u) {
-        usage.recordRequest(promptTokens: u.promptTokens, outputTokens: u.outputTokens);
-      },
-    );
 
     try {
-      final reply = await engine.reply(
-        history: history,
-        userText: userText,
-        tools: CoachTools(
-          habits: habitState.habits,
-          logs: habitState.logs,
-          today: now,
-          pendingCount: state.plan.length,
-        ),
-        systemInstruction: buildSystemInstruction(
-          now: now,
-          habitsSnapshot: habitState.habits.map(CoachTools.habitJson).toList(),
-          analyticsSnapshot: buildAnalytics(
-            habits: habitState.habits,
-            logs: habitState.logs,
-            today: now,
-            days: 14,
-          ),
-        ),
+      final apiKey = await ref.read(apiKeyProvider.future);
+      if (apiKey == null || apiKey.isEmpty) {
+        state = state.copyWith(isSending: false, error: 'Add your Gemini API key in Settings first.');
+        return;
+      }
+
+      final habitState = ref.read(habitNotifierProvider);
+      final now = DateTime.now();
+      final engine = CoachEngine(
+        GeminiClient(apiKey: apiKey, model: ref.read(geminiModelProvider)),
+        onUsage: (u) {
+          usage.recordRequest(promptTokens: u.promptTokens, outputTokens: u.outputTokens);
+        },
       );
+
+      final reply = await engine
+          .reply(
+            history: history,
+            userText: userText,
+            tools: CoachTools(
+              habits: habitState.habits,
+              logs: habitState.logs,
+              today: now,
+              pendingCount: state.plan.length,
+            ),
+            systemInstruction: buildSystemInstruction(
+              now: now,
+              habitsSnapshot: habitState.habits.map(CoachTools.habitJson).toList(),
+              analyticsSnapshot: buildAnalytics(
+                habits: habitState.habits,
+                logs: habitState.logs,
+                today: now,
+                days: 14,
+              ),
+            ),
+          )
+          .timeout(replyTimeout);
+      if (runId != _runId) return;
       state = state.copyWith(
         isSending: false,
         messages: [
@@ -177,10 +199,21 @@ class CoachController extends Notifier<CoachState> {
         plan: [...state.plan, ...reply.newPlanItems],
       );
       await _persist();
+    } on TimeoutException {
+      debugPrint('Coach reply timed out after $replyTimeout');
+      if (runId != _runId) return;
+      await usage.recordError(rateLimited: false);
+      state = state.copyWith(
+          isSending: false,
+          error: 'Gemini took too long to answer. Tap Retry, or pick a faster model in Settings.');
     } on CoachModelException catch (e) {
+      debugPrint('Coach error: $e');
+      if (runId != _runId) return;
       await usage.recordError(rateLimited: e.kind == CoachErrorKind.rateLimited);
       state = state.copyWith(isSending: false, error: e.userMessage);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('Coach error: $e\n$st');
+      if (runId != _runId) return;
       await usage.recordError(rateLimited: false);
       state = state.copyWith(isSending: false, error: 'Something went wrong: $e');
     } finally {

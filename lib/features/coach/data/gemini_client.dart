@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'coach_model.dart';
@@ -11,15 +12,32 @@ import 'coach_model.dart';
 /// Development-stage only: the key is the user's own, read from secure storage.
 class GeminiClient implements CoachModel {
   static const String defaultModel = 'gemini-flash-latest';
+
+  /// Lighter model tried when the chosen one is overloaded (503) or slow.
+  static const String fallbackModel = 'gemini-flash-lite-latest';
+  static const Duration _retryDelay = Duration(milliseconds: 1500);
   static const String _base = 'https://generativelanguage.googleapis.com/v1beta';
-  static const Duration _timeout = Duration(seconds: 60);
+  static const Duration _timeout = Duration(seconds: 30);
 
   final String apiKey;
   final String model;
   final http.Client _http;
 
-  GeminiClient({required this.apiKey, required this.model, http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+  /// Set once the fallback answered, so the rest of this reply (tool rounds)
+  /// stays on one model.
+  String? _activeModel;
+  final Duration _delay;
+
+  GeminiClient({
+    required this.apiKey,
+    required this.model,
+    http.Client? httpClient,
+    Duration retryDelay = _retryDelay,
+  })  : _http = httpClient ?? http.Client(),
+        _delay = retryDelay;
+
+  /// The model that answered last (differs from [model] after a fallback).
+  String get activeModel => _activeModel ?? model;
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -46,13 +64,42 @@ class GeminiClient implements CoachModel {
       'generationConfig': {'temperature': 0.7},
     };
 
-    final json = await _send(() => _http.post(
-          Uri.parse('$_base/models/$model:generateContent'),
+    final encoded = jsonEncode(body);
+    Future<Map<String, dynamic>> call(String m) => _send(() => _http.post(
+          Uri.parse('$_base/models/$m:generateContent'),
           headers: _headers,
-          body: jsonEncode(body),
+          body: encoded,
         ));
-    return parseGenerateResponse(json);
+
+    final current = activeModel;
+    try {
+      return parseGenerateResponse(await call(current));
+    } on CoachModelException catch (e) {
+      if (!_isBusy(e)) rethrow;
+      // Overloaded: one quick retry on 503, then the lighter model.
+      if (e.kind == CoachErrorKind.server) {
+        await Future<void>.delayed(_delay);
+        try {
+          return parseGenerateResponse(await call(current));
+        } on CoachModelException catch (e2) {
+          if (!_isBusy(e2)) rethrow;
+        }
+      }
+      if (current == fallbackModel) rethrow;
+      debugPrint('Gemini $current busy, falling back to $fallbackModel');
+      try {
+        final json = await call(fallbackModel);
+        _activeModel = fallbackModel;
+        return parseGenerateResponse(json);
+      } on CoachModelException {
+        throw e; // Report the original problem, not the fallback's.
+      }
+    }
   }
+
+  static bool _isBusy(CoachModelException e) =>
+      e.kind == CoachErrorKind.server ||
+      (e.kind == CoachErrorKind.network && e.message == 'Request timed out');
 
   /// Lists model ids that support `generateContent`. Also a cheap way to
   /// check that a key works.
@@ -73,11 +120,15 @@ class GeminiClient implements CoachModel {
 
   Future<Map<String, dynamic>> _send(Future<http.Response> Function() request) async {
     final http.Response res;
+    final watch = Stopwatch()..start();
     try {
       res = await request().timeout(_timeout);
+      debugPrint('Gemini ${res.statusCode} in ${watch.elapsedMilliseconds} ms '
+          '(${res.bodyBytes.length} bytes)');
     } on SocketException catch (e) {
       throw CoachModelException(CoachErrorKind.network, e.message);
     } on TimeoutException {
+      debugPrint('Gemini timed out after ${watch.elapsedMilliseconds} ms');
       throw const CoachModelException(CoachErrorKind.network, 'Request timed out');
     } on http.ClientException catch (e) {
       throw CoachModelException(CoachErrorKind.network, e.message);
