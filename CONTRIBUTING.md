@@ -2,6 +2,12 @@
 
 Thanks for helping! This is a small personal project, so please open an issue to discuss bigger changes before you start.
 
+Everyone taking part agrees to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Good first issues
+
+New here? Look for issues labelled [`good first issue`](https://github.com/nandakishor-s/smart-habit-tracker/labels/good%20first%20issue). Comment on the issue to claim it before you start, so two people don't do the same work.
+
 ## Ground rules
 
 - **Never commit secrets.** No API keys, keystores, `key.properties`, `.env` files or `google-services.json`. CI runs a secret scanner on every pull request and fails if it finds one.
