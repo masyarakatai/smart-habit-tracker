@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/streak_calculator.dart';
@@ -30,6 +31,7 @@ class SettingsScreen extends ConsumerWidget {
           _Section(title: 'Streak freezes', isDark: isDark, child: _FreezeInfo(isDark: isDark)),
           _Section(title: 'Data', isDark: isDark, child: const _DataSection()),
           _Section(title: 'Privacy', isDark: isDark, child: _PrivacyNote(isDark: isDark)),
+          const _AppVersion(),
         ],
       ),
     );
@@ -475,6 +477,34 @@ class _PrivacyNote extends StatelessWidget {
         height: 1.5,
         color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
       ),
+    );
+  }
+}
+
+class _AppVersion extends StatelessWidget {
+  const _AppVersion();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final info = snapshot.data!;
+        return Padding(
+          padding: const EdgeInsets.only(top: 24),
+          child: Center(
+            child: Text(
+              'Version ${info.version} (${info.buildNumber})',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
